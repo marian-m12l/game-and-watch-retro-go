@@ -26,6 +26,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bq24072.h"
+#include "main_gb_tgbdual.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -296,6 +297,90 @@ void EXTI9_5_IRQHandler(void)
   __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_PIN_7);
 
   /* USER CODE END EXTI9_5_IRQn 1 */
+}
+
+// FIXME Move into shared header
+static inline void delay_us(volatile uint32_t microseconds)
+{
+    uint32_t au32_initial_ticks = DWT->CYCCNT;
+    uint32_t au32_ticks = (HAL_RCC_GetHCLKFreq() / 1000000);
+    microseconds *= au32_ticks;
+    while ((DWT->CYCCNT - au32_initial_ticks) < microseconds-au32_ticks);
+}
+
+/**
+  * @brief This function handles EXTI line[15:10] interrupts.
+  */
+void EXTI15_10_IRQHandler(void)
+{
+  /* USER CODE BEGIN EXTI15_10_IRQn 0 */
+
+  if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_14))
+  {
+    // FIXME Remove debug spike
+    // Signal IRQ start
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
+    delay_us(1);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
+
+    // Sample line every <n> microseconds
+    uint8_t data = 0;
+    delay_us(6);//(7);
+
+    for (int i=0; i<8; i++) {
+      data = data << 1;
+      data |= HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_14) & 0x01;
+      
+      // FIXME Remove debug spike
+      // Signal IRQ bit read
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
+      delay_us(1);
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
+      
+      delay_us(9);//(10);
+      delay_us(10);
+    }
+
+    // Send current SB value
+    uint8_t response = get_current_sb();
+    uint8_t resp = response;
+    
+    delay_us(4);//(5);
+
+    // FIXME Remove debug spike
+    // Signal IRQ response start
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
+    delay_us(1);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
+
+    // Write bits
+    for (int i=0; i<8; i++) {
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, (GPIO_PinState) ((response & 0x80) >> 7));
+        delay_us(10);
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
+        delay_us(10);
+        response = response << 1;
+    }
+
+    // FIXME Remove debug spike
+    // Signal IRQ end
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
+    delay_us(1);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
+
+    printf("SERIAL IRQ: recv=0x%x resp=0x%x\n", data, resp);
+    
+    // Update current SB value and raise GB serial interrupt
+    set_sb_and_raise_interrupt(data);
+  }
+
+  /* USER CODE END EXTI15_10_IRQn 0 */
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_14);
+  /* USER CODE BEGIN EXTI15_10_IRQn 1 */
+
+  __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_PIN_14);
+
+  /* USER CODE END EXTI15_10_IRQn 1 */
 }
 
 /**

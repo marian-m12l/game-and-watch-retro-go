@@ -455,6 +455,107 @@ void init(uint8_t load_state, uint8_t save_slot)
     memset(gb_framebuffer, 0x0, sizeof(gb_framebuffer));
 }
 
+// FIXME Move to shared header?
+uint32_t DWT_Delay_Init(void)
+{
+    /* Disable TRC */
+    CoreDebug->DEMCR &= ~CoreDebug_DEMCR_TRCENA_Msk; // ~0x01000000;
+    /* Enable TRC */
+    CoreDebug->DEMCR |=  CoreDebug_DEMCR_TRCENA_Msk; // 0x01000000;
+ 
+    /* Disable clock cycle counter */
+    DWT->CTRL &= ~DWT_CTRL_CYCCNTENA_Msk; //~0x00000001;
+    /* Enable  clock cycle counter */
+    DWT->CTRL |=  DWT_CTRL_CYCCNTENA_Msk; //0x00000001;
+ 
+    /* Reset the clock cycle counter value */
+    DWT->CYCCNT = 0;
+ 
+    /* 3 NO OPERATION instructions */
+    __ASM volatile ("NOP");
+    __ASM volatile ("NOP");
+    __ASM volatile ("NOP");
+ 
+    /* Check if clock cycle counter has started */
+    if(DWT->CYCCNT)
+    {
+       return 0; /*clock cycle counter started*/
+    }
+    else
+    {
+      return 1; /*clock cycle counter not started*/
+    }
+}
+
+// FIXME Move to shared header?
+static inline void delay_us(volatile uint32_t microseconds)
+{
+    uint32_t au32_initial_ticks = DWT->CYCCNT;
+    uint32_t au32_ticks = (HAL_RCC_GetHCLKFreq() / 1000000);
+    microseconds *= au32_ticks;
+    while ((DWT->CYCCNT - au32_initial_ticks) < microseconds-au32_ticks);
+}
+
+// Send data over serial link cable
+byte send(byte b) {
+    // Disable PA14 IRQ during master transfer
+    HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
+    printf("send: 0x%x\n", b);
+
+    byte data = b;
+
+    // FIXME Remove debug spike
+    // Signal tranfer start
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
+    delay_us(2);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
+    delay_us(2);
+
+    // Write bits
+    for (int i=0; i<8; i++) {
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, (GPIO_PinState) ((data & 0x80) >> 7));
+        delay_us(10);
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
+        delay_us(10);
+        data = data << 1;
+    }
+    
+    // Wait for response
+    delay_us(10);
+
+    // Sample line every <n> microseconds
+    uint8_t response = 0;
+    for (int i=0; i<8; i++) {
+      response = response << 1;
+      response |= HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_14) & 0x01;
+      delay_us(10);
+      delay_us(10);
+    }
+
+    printf("SERIAL SEND: sent=0x%x recv=0x%x\n", b, response);
+
+    // Clear any pending interrupt
+    __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_PIN_14);
+    HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+    
+    return response;
+}
+bool led(void) {
+}
+
+
+// Functions called by PA14 (GB serial link) IRQ
+extern "C" uint8_t get_current_sb() {
+    return g_gb->get_regs()->SB;
+}
+extern "C" void set_sb_and_raise_interrupt(uint8_t sb) {
+    g_gb->get_regs()->SB=sb;
+    g_gb->get_regs()->SC&=3;
+    g_gb->get_cpu()->irq(INT_SERIAL);
+}
+
+uint32_t backup_dbgmcu_cr = 0;
+
 void app_main_gb_tgbdual_cpp(uint8_t load_state, uint8_t start_paused, uint8_t save_slot)
 {
     char palette_values[16];
@@ -481,6 +582,39 @@ void app_main_gb_tgbdual_cpp(uint8_t load_state, uint8_t start_paused, uint8_t s
 
     render = new gw_renderer(0);
     g_gb   = new gb(render, true, true);
+
+    backup_dbgmcu_cr = DBGMCU->CR;
+    DBGMCU->CR = 0;
+    // Enable GPIO PortA PA13 PA14
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_13;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_14;
+    GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+    GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    DWT_Delay_Init();
+
+    // Add TGB serial hook
+    ext_hook hook = { .send = &send, .led = &led };
+    g_gb->hook_extport(&hook);
+
+    // PA13 pin (SWDIO) is TX
+    // PA14 pin (SWCLK) is RX
+    // Cables should be crossed between two consoles
+
+    // Enable IRQ on PA14 rising edge (preamble is sent by the "master" console)
+    HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+    
+    // TODO Handle deinit when exiting emulator? GPIO + IRQ + DBGMCU
 
     if (!g_gb->load_rom((byte *)ROM_DATA, ROM_DATA_LENGTH, NULL, 0, true))
         return;
