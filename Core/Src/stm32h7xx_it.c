@@ -325,7 +325,7 @@ void EXTI15_10_IRQHandler(void)
 
     // Sample line every <n> microseconds
     uint8_t data = 0;
-    delay_us(6);//(7);
+    delay_us(3);//(4);
 
     for (int i=0; i<8; i++) {
       data = data << 1;
@@ -337,8 +337,7 @@ void EXTI15_10_IRQHandler(void)
       delay_us(1);
       HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
       
-      delay_us(9);//(10);
-      delay_us(10);
+      delay_us(3);//(2);
     }
 
     // Send current SB value
@@ -356,11 +355,10 @@ void EXTI15_10_IRQHandler(void)
     // Write bits
     for (int i=0; i<8; i++) {
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, (GPIO_PinState) ((response & 0x80) >> 7));
-        delay_us(10);
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
-        delay_us(10);
+        delay_us(4);
         response = response << 1;
     }
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
 
     // FIXME Remove debug spike
     // Signal IRQ end

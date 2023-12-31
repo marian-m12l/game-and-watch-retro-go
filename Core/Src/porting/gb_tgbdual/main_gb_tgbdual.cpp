@@ -514,22 +514,20 @@ byte send(byte b) {
     // Write bits
     for (int i=0; i<8; i++) {
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, (GPIO_PinState) ((data & 0x80) >> 7));
-        delay_us(10);
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
-        delay_us(10);
+        delay_us(4);
         data = data << 1;
     }
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
     
     // Wait for response
-    delay_us(10);
+    delay_us(6);
 
     // Sample line every <n> microseconds
     uint8_t response = 0;
     for (int i=0; i<8; i++) {
       response = response << 1;
       response |= HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_14) & 0x01;
-      delay_us(10);
-      delay_us(10);
+      delay_us(4);
     }
 
     printf("SERIAL SEND: sent=0x%x recv=0x%x\n", b, response);
