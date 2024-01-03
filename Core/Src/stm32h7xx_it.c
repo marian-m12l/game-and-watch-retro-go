@@ -332,7 +332,13 @@ void EXTI15_10_IRQHandler(void)
 
     // Sample line every <n> microseconds
     uint8_t data = 0;
-    delay_us(3);//(4);
+    delay_us(2);//(4);
+
+    // FIXME Remove debug spike
+    // Signal reading start
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
+    delay_us(1);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
 
     for (int i=0; i<8; i++) {
       data = data << 1;
@@ -372,9 +378,10 @@ void EXTI15_10_IRQHandler(void)
     // Signal IRQ end
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
     delay_us(1);
-    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
 
     printf("SERIAL IRQ: recv=0x%x resp=0x%x\n", data, resp);
+    
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
   }
 
   /* USER CODE END EXTI15_10_IRQn 0 */

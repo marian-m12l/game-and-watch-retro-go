@@ -523,21 +523,41 @@ byte send(byte b) {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
     
     // Wait for response
-    delay_us(7);
+    delay_us(6);
+
+    // FIXME Remove debug spike
+    // Signal response reading start
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
+    delay_us(1);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
 
     // Sample line every <n> microseconds
     uint8_t response = 0;
     for (int i=0; i<8; i++) {
       response = response << 1;
       response |= HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_14) & 0x01;
-      delay_us(4);
+      
+      // FIXME Remove debug spike
+      // Signal bit read
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
+      delay_us(1);
+      HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
+
+      delay_us(3);
     }
+
+    // FIXME Remove debug spike
+    // Signal read end
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
+    delay_us(1);
 
     printf("SERIAL SEND: sent=0x%x recv=0x%x\n", b, response);
 
     // Clear any pending interrupt
     __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_PIN_14);
     HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
     
     return response;
 }
