@@ -26,7 +26,12 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bq24072.h"
+
+#ifdef ENABLE_EMULATOR_GB
+#if FORCE_GNUBOY == 0
 #include "main_gb_tgbdual.h"
+#endif
+#endif
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -314,6 +319,8 @@ static inline void delay_us(volatile uint32_t microseconds)
 void EXTI15_10_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI15_10_IRQn 0 */
+#ifdef ENABLE_EMULATOR_GB
+#if FORCE_GNUBOY == 0
 
   if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_14))
   {
@@ -341,7 +348,8 @@ void EXTI15_10_IRQHandler(void)
     }
 
     // Send current SB value
-    uint8_t response = get_current_sb();
+    // This function also updates current SB value and raises GB serial interrupt
+    uint8_t response = handle_incoming_serial_data(data);
     uint8_t resp = response;
     
     delay_us(4);//(5);
@@ -367,9 +375,6 @@ void EXTI15_10_IRQHandler(void)
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
 
     printf("SERIAL IRQ: recv=0x%x resp=0x%x\n", data, resp);
-    
-    // Update current SB value and raise GB serial interrupt
-    set_sb_and_raise_interrupt(data);
   }
 
   /* USER CODE END EXTI15_10_IRQn 0 */
@@ -378,6 +383,8 @@ void EXTI15_10_IRQHandler(void)
 
   __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_PIN_14);
 
+#endif
+#endif
   /* USER CODE END EXTI15_10_IRQn 1 */
 }
 

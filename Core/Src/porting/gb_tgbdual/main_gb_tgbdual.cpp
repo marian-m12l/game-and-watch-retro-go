@@ -502,6 +502,9 @@ byte send(byte b) {
     HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
     printf("send: 0x%x\n", b);
 
+    // TODO Check SC register for speed (normal/fast)
+    // TODO Also check CGB double-speed ??
+
     byte data = b;
 
     // FIXME Remove debug spike
@@ -520,7 +523,7 @@ byte send(byte b) {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
     
     // Wait for response
-    delay_us(6);
+    delay_us(7);
 
     // Sample line every <n> microseconds
     uint8_t response = 0;
@@ -542,14 +545,9 @@ bool led(void) {
 }
 
 
-// Functions called by PA14 (GB serial link) IRQ
-extern "C" uint8_t get_current_sb() {
-    return g_gb->get_regs()->SB;
-}
-extern "C" void set_sb_and_raise_interrupt(uint8_t sb) {
-    g_gb->get_regs()->SB=sb;
-    g_gb->get_regs()->SC&=3;
-    g_gb->get_cpu()->irq(INT_SERIAL);
+// Function called by PA14 (GB serial link) IRQ
+extern "C" uint8_t handle_incoming_serial_data(uint8_t data) {
+    return (uint8_t) g_gb->get_cpu()->seri_send((byte) data);
 }
 
 uint32_t backup_dbgmcu_cr = 0;
@@ -594,7 +592,7 @@ void app_main_gb_tgbdual_cpp(uint8_t load_state, uint8_t start_paused, uint8_t s
     GPIO_InitStruct = {0};
     GPIO_InitStruct.Pin = GPIO_PIN_14;
     GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-    GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+    GPIO_InitStruct.Pull = GPIO_PULLDOWN;   // Should be normally HIGH to return 0xff when no counterpart is wired
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
