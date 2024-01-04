@@ -324,6 +324,10 @@ void EXTI15_10_IRQHandler(void)
 
   if(__HAL_GPIO_EXTI_GET_FLAG(GPIO_PIN_14))
   {
+
+    // FIXME Disable ALL IRQs to avoid being cut during transfer
+    __disable_irq();
+
     // FIXME Remove debug spike
     // Signal IRQ start
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
@@ -379,7 +383,10 @@ void EXTI15_10_IRQHandler(void)
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
     delay_us(1);
 
-    printf("SERIAL IRQ: recv=0x%x resp=0x%x\n", data, resp);
+    //printf("SERIAL IRQ: recv=0x%x resp=0x%x\n", data, resp);
+
+    // FIXME Re-enable ALL IRQs
+    __enable_irq();
     
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
   }

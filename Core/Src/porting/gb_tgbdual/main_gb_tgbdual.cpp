@@ -500,7 +500,10 @@ static inline void delay_us(volatile uint32_t microseconds)
 byte send(byte b) {
     // Disable PA14 IRQ during master transfer
     HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
-    printf("send: 0x%x\n", b);
+    //printf("send: 0x%x\n", b);
+
+    // FIXME Disable ALL IRQs to avoid being cut during transfer
+    __disable_irq();
 
     // TODO Check SC register for speed (normal/fast)
     // TODO Also check CGB double-speed ??
@@ -551,11 +554,14 @@ byte send(byte b) {
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_SET);
     delay_us(1);
 
-    printf("SERIAL SEND: sent=0x%x recv=0x%x\n", b, response);
+    //printf("SERIAL SEND: sent=0x%x recv=0x%x\n", b, response);
 
     // Clear any pending interrupt
     __HAL_GPIO_EXTI_CLEAR_FLAG(GPIO_PIN_14);
     HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
+    // FIXME Re-enable ALL IRQs
+    __enable_irq();
 
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_13, GPIO_PIN_RESET);
     
